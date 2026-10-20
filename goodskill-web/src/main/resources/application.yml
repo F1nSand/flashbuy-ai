@@ -1,0 +1,144 @@
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: utf-8
+      enabled: true
+      force: true
+    register-default-servlet: true
+
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  application:
+    name: goodskill-web
+  main:
+    allow-bean-definition-overriding: true
+    allow-circular-references: true
+  cloud:
+    nacos:
+      username: nacos
+      password: nacos
+      server-addr: nacos:8848
+      discovery:
+        metadata:
+          management:
+            ##配置元数据解决SpringBoot Admin无法正常监控问题
+            context-path: ${server.servlet.context-path}/actuator
+    function:
+      ##多个用;分隔
+      definition: seckillResult;seckillCanalResult
+    stream:
+      bindings:
+        ##配置消息绑定
+        seckill-out-0:
+          destination: seckill
+        seckillResult-in-0:
+          ##解决重复消费问题，注意：同一组下只消费一次
+          group: default
+          destination: seckill-result
+        seckillCanalResult-in-0:
+          ##解决重复消费问题，注意：同一组下只消费一次
+          group: default
+          destination: seckill-canal-result
+
+##dubbo配置
+dubbo:
+  protocol:
+    name: tri
+    port: -1
+  consumer:
+    timeout: 30000
+    check: false
+  application:
+    enable-file-cache: false
+    qos-port: 22224
+
+springdoc:
+  version: '@springdoc.version@'
+  swagger-ui:
+    display-request-duration: true
+    groups-order: DESC
+    operationsSorter: method
+    disable-swagger-default-url: true
+    use-root-path: true
+  show-actuator: true
+  group-configs:
+    - group: web
+      paths-to-match: /**
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "!production"
+    import:
+      - optional:nacos:goodskill-common-connection.yml
+      - optional:nacos:goodskill-common.yml
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+    import:
+      - nacos:goodskill-common-production.yml
+      - nacos:goodskill-web-production.yml
+  data:
+    redis:
+      host: ${GOODSKILL_REDIS_HOST}
+      port: ${GOODSKILL_REDIS_PORT:6379}
+      password: ${GOODSKILL_REDIS_PASSWORD:}
+      database: ${GOODSKILL_REDIS_DATABASE:0}
+      timeout: 1s
+      connect-timeout: 1s
+  rabbitmq:
+    host: ${GOODSKILL_RABBITMQ_HOST}
+    port: ${GOODSKILL_RABBITMQ_PORT:5672}
+    username: ${GOODSKILL_RABBITMQ_USERNAME}
+    password: ${GOODSKILL_RABBITMQ_PASSWORD}
+    virtual-host: ${GOODSKILL_RABBITMQ_VHOST:/}
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1s
+          max-attempts: 5
+          max-interval: 10s
+          multiplier: 2
+  cloud:
+    function:
+      definition: ""
+    stream:
+      enabled: false
+    nacos:
+      server-addr: ${GOODSKILL_NACOS_SERVER_ADDR}
+      username: ${GOODSKILL_NACOS_USERNAME}
+      password: ${GOODSKILL_NACOS_PASSWORD}
+      discovery:
+        namespace: ${GOODSKILL_NACOS_NAMESPACE}
+      config:
+        namespace: ${GOODSKILL_NACOS_NAMESPACE}
+  autoconfigure:
+    exclude:
+      - org.springframework.cloud.stream.config.BindingServiceConfiguration
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+  show-actuator: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+    shutdown:
+      enabled: false
+goodskill:
+  websocket:
+    allowed-origins: ${GOODSKILL_WEB_ALLOWED_ORIGINS:}

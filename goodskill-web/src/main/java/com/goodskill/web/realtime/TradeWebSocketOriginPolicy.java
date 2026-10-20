@@ -1,0 +1,43 @@
+package com.goodskill.web.realtime;
+
+import java.net.URI;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+final class TradeWebSocketOriginPolicy {
+
+    private TradeWebSocketOriginPolicy() {
+    }
+
+    static Set<String> parse(String configuredOrigins) {
+        if (configuredOrigins == null || configuredOrigins.isBlank()) {
+            throw new IllegalStateException("GOODSKILL_WEB_ALLOWED_ORIGINS must list trusted HTTPS browser origins");
+        }
+        Set<String> origins = Arrays.stream(configuredOrigins.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .map(TradeWebSocketOriginPolicy::canonicalOrigin)
+                .collect(Collectors.toUnmodifiableSet());
+        if (origins.isEmpty()) {
+            throw new IllegalStateException("GOODSKILL_WEB_ALLOWED_ORIGINS must not be empty");
+        }
+        return origins;
+    }
+
+    static String canonicalOrigin(String origin) {
+        try {
+            URI uri = URI.create(origin);
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
+                    || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null
+                    || (uri.getPath() != null && !uri.getPath().isEmpty())) {
+                throw new IllegalStateException("Only exact HTTPS origins are accepted for production WebSocket");
+            }
+            int port = uri.getPort() == 443 ? -1 : uri.getPort();
+            return "https://" + uri.getHost().toLowerCase(java.util.Locale.ROOT)
+                    + (port < 0 ? "" : ":" + port);
+        } catch (IllegalArgumentException invalid) {
+            throw new IllegalStateException("GOODSKILL_WEB_ALLOWED_ORIGINS contains an invalid origin", invalid);
+        }
+    }
+}

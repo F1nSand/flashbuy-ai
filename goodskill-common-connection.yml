@@ -1,0 +1,33 @@
+spring:
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: guest
+    password: guest
+  kafka:
+    bootstrap-servers: kafka:9092
+  elasticsearch:
+    uris: http://elasticsearch:9200
+  data:
+    redis:
+      port: 6379
+      host: redis
+      password: 123456
+    sentinel:
+      transport:
+        port: 8719
+        ## 默认端口8080，已改为自定义18088端口，通过http://127.0.0.1:18088/#/dashboard访问
+        dashboard: localhost:18088
+
+dubbo:
+  registry:
+    address: zookeeper://zookeeper:2181
+
+zookeeper_ip: zookeeper:2181
+
+## oss配置
+minio:
+  endpoint: http://localhost:19000
+  accessKey: demo-minio-user
+  secretKey: demo-minio-password
+  bucketName: goodskill

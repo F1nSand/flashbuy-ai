@@ -1,0 +1,218 @@
+server:
+  port: 80
+spring:
+  profiles:
+    active: dev
+  application:
+    name: goodskill-gateway
+  main:
+    allow-bean-definition-overriding: true
+  cloud:
+    sentinel:
+      filter:
+        ## 网关服务此项需配置为false（若在网关流控控制台上看到了 URL 资源，就是此配置项没有置为 false）
+        enabled: false
+      ##使用nacos配置中心存储限流规则
+      datasource:
+        ds0:
+          nacos:
+            rule-type: gw-flow
+    gateway:
+      ##开启网关日志监控
+      httpserver:
+        wiretap: true
+      ##开启指标监控
+#      metrics:
+#        enabled: true
+#        tags:
+#          path:
+#            enabled: true
+      predicate:
+        weight:
+          enabled: false
+      httpclient:
+        ssl:
+          useInsecureTrustManager: true
+        connect-timeout: 1000
+        response-timeout: 5s
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: oauth2-auth-server
+          uri: lb://oauth2-auth-server
+          predicates:
+            - Path=/oauth/**,/.well-known/jwks.json
+        - id: oauth2-resource-server
+          uri: lb://oauth2-resource-server
+          predicates:
+            - Path=/api/v5/user
+        - id: goodskill-admin
+          uri: lb://goodskill-admin
+          predicates:
+            - Path=/admin/**
+          filters:
+            - StripPrefix=1
+        - id: goodskill-common
+          uri: lb://goodskill-common
+          predicates:
+            - Path=/api/common/**
+          filters:
+            - StripPrefix=2
+        - id: goodskill-ai
+          uri: lb://goodskill-ai
+          predicates:
+            - Path=/api/ai/**
+          filters:
+            - StripPrefix=2
+        - id: prefixpath_route
+          uri: lb://goodskill-web
+          predicates:
+            - Path=/api/test
+          filters:
+            - RedirectTo=302, https://www.baidu.com, true
+
+management:
+  endpoint:
+    gateway:
+      enabled: true
+
+nacos:
+  router:
+    data:
+      id: goodskill-gateway-routes
+
+#接口白名单
+security:
+  ignore:
+    ##普通接口白名单
+    whiteUrl:
+      - "/api/auth/login"
+      - "/api/web/**"
+    ##登录用户接口白名单
+    loginUserWhiteUrls:
+      - "/api/xxx"
+
+# knife4j配置
+knife4j:
+  gateway:
+    enabled: true
+    # 指定服务发现的模式聚合微服务文档，并且是默认`default`分组
+    strategy: manual
+    routes:
+      - name: web服务
+        service-name: goodskill-web
+        url: /api/web/v3/api-docs?group=default
+        order: 1
+        context-path: /api/web
+      - name: 认证服务
+        service-name: goodskill-auth
+        url: /api/auth/v3/api-docs?group=default
+        order: 3
+        context-path: /api/auth
+      - name: 订单服务
+        service-name: goodskill-order
+        url: /api/order/v3/api-docs?group=default
+        order: 4
+        context-path: /api/order
+      - name: seata服务
+        service-name: goodskill-seata
+        url: /api/seata/v3/api-docs?group=default
+        order: 5
+        context-path: /api/seata
+      - name: 秒杀服务
+        service-name: goodskill-service-provider
+        url: /api/seckill/v3/api-docs?group=default
+        order: 6
+        context-path: /api/seckill
+      - name: 公共服务
+        service-name: goodskill-common
+        url: /api/common/v3/api-docs?group=default
+        order: 7
+        context-path: /api/common
+      - name: AI服务
+        service-name: goodskill-ai
+        url: /api/ai/v3/api-docs?group=default
+        order: 8
+        context-path: /api/ai
+    discover:
+      enabled: true
+      # 指定版本号(Swagger2|OpenAPI3)
+      version : openapi3
+logging:
+  level:
+    reactor.netty: info
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "!production"
+    import:
+      - optional:nacos:goodskill-common-connection.yml
+      - optional:nacos:goodskill-common.yml
+  cloud:
+    nacos:
+      username: nacos
+      password: nacos
+      server-addr: nacos:8848
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+    import:
+      - nacos:goodskill-common-production.yml
+      - nacos:goodskill-gateway-production.yml
+  data:
+    redis:
+      host: ${GOODSKILL_REDIS_HOST}
+      port: ${GOODSKILL_REDIS_PORT:6379}
+      password: ${GOODSKILL_REDIS_PASSWORD}
+      database: ${GOODSKILL_REDIS_DATABASE:0}
+      timeout: 1s
+      connect-timeout: 1s
+  cloud:
+    nacos:
+      server-addr: ${GOODSKILL_NACOS_SERVER_ADDR}
+      username: ${GOODSKILL_NACOS_USERNAME}
+      password: ${GOODSKILL_NACOS_PASSWORD}
+      discovery:
+        namespace: ${GOODSKILL_NACOS_NAMESPACE}
+      config:
+        namespace: ${GOODSKILL_NACOS_NAMESPACE}
+    gateway:
+      discovery:
+        locator:
+          enabled: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+    shutdown:
+      enabled: false
+goodskill:
+  security:
+    browser-origins: ${GOODSKILL_WEB_ALLOWED_ORIGINS:}
+  gateway:
+    order-rate-per-second: ${GOODSKILL_GATEWAY_ORDER_RATE_PER_SECOND:2}
+    order-rate-burst: ${GOODSKILL_GATEWAY_ORDER_RATE_BURST:10}
+  trade:
+    admission-enabled: ${GOODSKILL_TRADE_ADMISSION_ENABLED:false}
+sa-token:
+  token-name: access_token
+  is-read-cookie: true
+  is-read-header: false
+  is-read-body: false
+  is-write-header: false
+  cookie:
+    path: /
+    secure: true
+    http-only: true
+    same-site: Lax

@@ -1,0 +1,179 @@
+version: "3"
+
+services:
+  rabbitmq-management:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - somenetwork
+
+  nacos:
+    container_name: nacos
+    environment:
+      - PREFER_HOST_MODE=hostname
+      - MODE=standalone
+#      - NACOS_AUTH_IDENTITY_KEY=nacos
+#      - NACOS_AUTH_IDENTITY_VALUE=my-nacos
+#      - NACOS_AUTH_TOKEN=123456
+      - NACOS_AUTH_ENABLE=true
+    volumes:
+      - ./doc/docker/nacos/standalone-logs/:/home/nacos/standalone-logs
+      - ./doc/docker/nacos/init.d/custom.properties:/home/nacos/init.d/custom.properties
+      - ./doc/docker/nacos/conf/application.properties:/home/nacos/conf/application.properties
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    restart: always
+    build:
+      context: ./doc/docker/nacos
+    networks:
+      - somenetwork
+
+  zookeeper:
+    image: zookeeper:3.6.2
+    container_name: zookeeper
+    restart: always
+    ports:
+      - "2181:2181"
+    networks:
+      - somenetwork
+
+  kafka:
+    image: bitnamilegacy/kafka:3.1.1
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "1099:1099"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: "kafka"
+      KAFKA_ADVERTISED_PORT: "9092"
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      #自动创建topic,goodskill-kafka:12:1表示创建“goodskill-kafka”topic,12个分区,1个副本
+      KAFKA_CREATE_TOPICS: "goodskill-kafka:12:1"
+      JMX_PORT: "1099"
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=kafka -Dcom.sun.management.jmxremote.rmi.port=1099"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+      KAFKA_BROKER_ID: "1"
+      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092"
+      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://127.0.0.1:9092"
+    depends_on:
+      - zookeeper
+    restart: always
+    networks:
+      - somenetwork
+
+  kafka-manager:
+    image: kafkamanager/kafka-manager:latest
+    container_name: kafkamanager
+    restart: always
+    ports:
+      - "9001:9000"
+    environment:
+      - ZK_HOSTS=zookeeper:2181
+    depends_on:
+      - zookeeper
+      - kafka
+    networks:
+      - somenetwork
+
+  redis:
+    image: redis
+    container_name: redis
+    restart: always
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+      - "6379:6379"
+    networks:
+      - somenetwork
+    command: [ "redis-server", "--appendonly", "yes", "--requirepass", "123456" ]
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.29
+    container_name: elasticsearch
+    environment:
+      - "cluster.name=elasticsearch" #设置集群名称为elasticsearch
+      - "discovery.type=single-node" #以单一节点模式启动
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" #设置使用jvm内存大小
+    volumes:
+      - ./doc/docker/elasticsearch/plugins:/usr/share/elasticsearch/plugins #插件文件挂载
+    #      - ./doc/docker/elasticsearch/data:/usr/share/elasticsearch/data #数据文件挂载
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - somenetwork
+
+  mysql:
+    image: mysql:8.0.29
+    container_name: mysql
+    restart: always
+    ports:
+      - "${GOODSKILL_MYSQL_HOST_PORT:-3306}:3306"
+    command:
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_0900_ai_ci
+      --lower-case-table-names=1
+    volumes:
+      - ./goodskill-web/src/main/sql:/docker-entrypoint-initdb.d/
+    environment:
+      MYSQL_ROOT_PASSWORD: "Password123"
+      MYSQL_DATABASE: "seckill"
+      MYSQL_USER: "seckill"
+      MYSQL_PASSWORD: "Password123"
+    networks:
+      - somenetwork
+
+  mongo:
+    image: mongo:6.0.7
+    container_name: mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    networks:
+      - somenetwork
+  #    environment:
+  #      MONGO_INITDB_ROOT_USERNAME: root
+  #      MONGO_INITDB_ROOT_PASSWORD: root
+
+  seata-server:
+    image: seataio/seata-server:2.0.0
+    container_name: seata-server
+    hostname: seata-server
+    ports:
+      - "8091:8091"
+      - "7091:7091"
+    environment:
+      # 注册到nacos上的ip。客户端将通过该ip访问seata服务。
+      # 注意公网ip和内网ip的差异。
+      - SEATA_IP=192.168.0.103
+      - SEATA_PORT=8091
+#      - STORE_MODE=db
+#      - SEATA_CONFIG_NAME=file:/root/seata-config/registry.conf
+    volumes:
+      - ./doc/docker/seata/resources/application.yml:/seata-server/resources/application.yml
+    networks:
+      - somenetwork
+
+  minio:
+    container_name: minio
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+    ports:
+      - '19000:9000'
+      - '19001:9001'
+    volumes:
+      - ./doc/docker/minio_data:/bitnami/minio/data
+    environment:
+      - MINIO_ROOT_USER=root
+      - MINIO_ROOT_PASSWORD=password
+    networks:
+      - somenetwork
+
+networks:
+  somenetwork:
+    driver: bridge

@@ -1,0 +1,223 @@
+services:
+  mysql:
+    volumes:
+      - goodskill-demo-mysql:/var/lib/mysql
+
+  redis:
+    volumes:
+      - goodskill-demo-redis:/data
+
+  mongo:
+    volumes:
+      - goodskill-demo-mongo:/data/db
+
+  minio:
+    environment:
+      MINIO_ROOT_USER: demo-minio-user
+      MINIO_ROOT_PASSWORD: demo-minio-password
+      MINIO_DEFAULT_BUCKETS: goodskill
+    volumes:
+      - goodskill-demo-minio:/bitnami/minio/data
+
+  kafka:
+    environment:
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+
+  nacos:
+    environment:
+      SPRING_DATASOURCE_PLATFORM: mysql
+      JAVA_TOOL_OPTIONS: -XX:-UseContainerSupport
+    depends_on:
+      mysql:
+        condition: service_started
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+      args:
+        JAR_FILE: goodskill-gateway/target/goodskill.jar
+    environment: &demo-app-environment
+      SPRING_PROFILES_ACTIVE: localdemo
+      SPRING_CLOUD_NACOS_SERVER_ADDR: nacos:8848
+      SPRING_CLOUD_NACOS_USERNAME: nacos
+      SPRING_CLOUD_NACOS_PASSWORD: nacos
+      SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR: nacos:8848
+      SPRING_CLOUD_NACOS_CONFIG_USERNAME: nacos
+      SPRING_CLOUD_NACOS_CONFIG_PASSWORD: nacos
+      JAVA_OPTS: -XX:MaxRAMPercentage=70.0
+    ports:
+      - "18080:80"
+    depends_on: &demo-app-dependencies
+      nacos:
+        condition: service_started
+      mysql:
+        condition: service_started
+      redis:
+        condition: service_started
+      rabbitmq-management:
+        condition: service_started
+      zookeeper:
+        condition: service_started
+      kafka:
+        condition: service_started
+      elasticsearch:
+        condition: service_started
+      mongo:
+        condition: service_started
+      minio:
+        condition: service_started
+      auth:
+        condition: service_started
+      common:
+        condition: service_started
+      order:
+        condition: service_started
+      seckill:
+        condition: service_started
+      web:
+        condition: service_started
+    networks: &demo-app-networks
+      - somenetwork
+    restart: unless-stopped
+
+  auth:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+      args:
+        JAR_FILE: goodskill-auth/auth-service/target/goodskill.jar
+    environment: *demo-app-environment
+    depends_on:
+      nacos:
+        condition: service_started
+      mysql:
+        condition: service_started
+      redis:
+        condition: service_started
+    networks: *demo-app-networks
+    restart: unless-stopped
+
+  common:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+      args:
+        JAR_FILE: goodskill-common/goodskill-common-service/target/goodskill.jar
+    environment:
+      <<: *demo-app-environment
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/test
+    depends_on:
+      nacos:
+        condition: service_started
+      mongo:
+        condition: service_started
+      minio:
+        condition: service_started
+    networks: *demo-app-networks
+    restart: unless-stopped
+
+  order:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+      args:
+        JAR_FILE: goodskill-order-provider/goodskill-order-service/target/goodskill-mongo-service.jar
+    environment:
+      <<: *demo-app-environment
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/test
+    depends_on:
+      nacos:
+        condition: service_started
+      mongo:
+        condition: service_started
+      rabbitmq-management:
+        condition: service_started
+      zookeeper:
+        condition: service_started
+    networks: *demo-app-networks
+    restart: unless-stopped
+
+  seckill:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+      args:
+        JAR_FILE: goodskill-seckill-provider/goodskill-service/target/goodskill-service.jar
+    environment: *demo-app-environment
+    depends_on:
+      nacos:
+        condition: service_started
+      mysql:
+        condition: service_started
+      redis:
+        condition: service_started
+      rabbitmq-management:
+        condition: service_started
+      zookeeper:
+        condition: service_started
+      kafka:
+        condition: service_started
+      elasticsearch:
+        condition: service_started
+      minio:
+        condition: service_started
+      order:
+        condition: service_started
+    networks: *demo-app-networks
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+      args:
+        JAR_FILE: goodskill-web/target/goodskill.jar
+    environment:
+      <<: *demo-app-environment
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/test
+    depends_on:
+      nacos:
+        condition: service_started
+      mysql:
+        condition: service_started
+      redis:
+        condition: service_started
+      rabbitmq-management:
+        condition: service_started
+      zookeeper:
+        condition: service_started
+      kafka:
+        condition: service_started
+      seckill:
+        condition: service_started
+    networks: *demo-app-networks
+    restart: unless-stopped
+
+  ai:
+    profiles: ["ai"]
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+      args:
+        JAR_FILE: goodskill-ai/target/goodskill.jar
+    environment:
+      <<: *demo-app-environment
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
+    depends_on:
+      nacos:
+        condition: service_started
+      seckill:
+        condition: service_started
+      web:
+        condition: service_started
+    networks: *demo-app-networks
+    restart: unless-stopped
+
+volumes:
+  goodskill-demo-mysql:
+  goodskill-demo-redis:
+  goodskill-demo-mongo:
+  goodskill-demo-minio:

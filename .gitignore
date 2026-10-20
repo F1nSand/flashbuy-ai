@@ -1,0 +1,46 @@
+# IDE and local workspace files
+.idea/
+**/.idea/
+.settings/
+**/.settings/
+**/.classpath
+**/.project
+*.iml
+*.ipr
+*.iws
+
+# Local secrets and credentials
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Logs, caches, and generated build output
+*.log
+.gradle/
+**/target/
+**/build/
+**/node_modules/
+**/dist/
+out/
+.demo/
+
+# Personal development notes
+/progress.md
+/docs/resume-project-experience.md
+/docs/plans/
+
+# Maven generated POM
+**/.flattened-pom.xml
+# Personal resume draft
+/AI 高并发秒杀订单库存系统.txt
+# OS and editor temporary files
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp

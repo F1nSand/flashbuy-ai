@@ -1,0 +1,60 @@
+spring:
+  profiles:
+    active: docker
+---
+spring:
+  application:
+    name: goodskill-seata
+  config:
+    activate:
+      on-profile: docker
+    import:
+      - optional:nacos:goodskill-common-connection.yml
+      - optional:nacos:goodskill-common.yml
+  cloud:
+    nacos:
+      username: nacos
+      password: nacos
+      server-addr: nacos:8848
+  main:
+    allow-circular-references: true
+dubbo:
+  protocol:
+    name: tri
+    ### 服务暴露端口
+    port: -1
+    status: server
+  registry:
+    address: zookeeper://zookeeper:2181
+    timeout: 30000
+    id: my-registry
+  provider:
+    timeout: 60000
+  application:
+    enable-file-cache: false
+    ##开启应用级地址注册
+    register-mode: instance
+    qos-port: 22223
+
+seata:
+  enabled: true
+  enable-auto-data-source-proxy: true
+  application-id:
+  tx-service-group: my_test_tx_group
+  config:
+    type: nacos
+    nacos:
+      namespace: bca6fe13-8ddd-4721-b753-022fe3beabd8
+      serverAddr: nacos:8848
+      group: SEATA_GROUP
+      username: nacos
+      password: nacos
+  registry:
+    type: nacos
+    nacos:
+      application: seata-server
+      server-addr: nacos:8848
+      group: SEATA_GROUP
+      namespace: bca6fe13-8ddd-4721-b753-022fe3beabd8
+      username: nacos
+      password: nacos

@@ -1,0 +1,243 @@
+server:
+  port: 54870
+
+
+spring:
+  graphql:
+    graphiql:
+      enabled: true
+  profiles:
+    active: dev
+  application:
+    name: goodskill-seckill
+  kafka:
+    consumer:
+      group-id: seckill
+      ##ensures the new consumer group gets the messages we sent
+      auto-offset-reset: earliest
+  main:
+    allow-circular-references: true
+    allow-bean-definition-overriding: true
+  redis:
+    redisson:
+      ## 注:默认序列化方式Kryo5Codec与spring statemachine依赖冲突,使用json-jackson替代。config后的“|”代表多行文本
+      config: |
+        codec: !<org.redisson.codec.JsonJacksonCodec> {}
+        singleServerConfig:
+          password: 123456
+          address: "redis://redis:6379"
+  flyway:
+    enabled: false
+    baseline-on-migrate: true
+    clean-disabled: true
+    locations:
+      - classpath:db/migration/mysql
+
+  datasource:
+    #    driver-class-name: org.apache.shardingsphere.driver.ShardingSphereDriver
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    #    url: jdbc:shardingsphere:classpath:sharding-sphere.yml
+    url: jdbc:mysql://mysql:3306/seckill?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&rewriteBatchedStatements=true
+    username: root
+    password: Password123
+  #  shardingsphere:
+  #    datasource:
+  #      names: ds0,ds1
+  #      ds0:
+  #        driver-class-name: com.mysql.cj.jdbc.Driver
+  #        type: com.zaxxer.hikari.HikariDataSource
+  #      ds1:
+  #        driver-class-name: com.mysql.cj.jdbc.Driver
+  #        type: com.zaxxer.hikari.HikariDataSource
+  #    sharding:
+  #      binding-tables: success_killed
+  #      tables:
+  #        success_killed:
+  #          actual-data-nodes: ds$->{0..1}.success_killed_$->{0..1}
+  #          database-strategy:
+  #            inline:
+  #              algorithm-expression: ds$->{seckill_id % 2}
+  #              sharding-column: seckill_id
+  #          table-strategy:
+  #            inline:
+  #              algorithm-expression: success_killed_$->{user_phone.toLong() % 2}
+  #              sharding-column: user_phone
+  #      #必须配置，否则未配置的表会被应用分库分表规则
+  #      default-data-source-name: ds0
+  #    props:
+  #      sql:
+  #        show: false
+
+  cloud:
+    nacos:
+      username: nacos
+      password: nacos
+      server-addr: nacos:8848
+    function:
+      definition: seckill
+    stream:
+      bindings:
+        seckilResult-out-0:
+          destination: seckill-result
+        seckill-in-0:
+          ##解决重复消费问题，注意：同一组下只消费一次
+          group: default
+          destination: seckill
+        seckillMongoSave-out-0:
+          destination: seckill-order-save
+      default-binder: rabbit
+  ##开启虚拟线程
+  threads:
+    virtual:
+      enabled: true
+
+dubbo:
+  scan:
+    base-packages: com.goodskill.service.impl.dubbo
+  protocol:
+    name: tri
+    ### 服务暴露端口
+    port: -1
+    status: server
+  registry:
+    timeout: 30000
+    id: my-registry
+  provider:
+    timeout: 60000
+  application:
+    enable-file-cache: false
+    ##开启应用级地址注册
+    register-mode: instance
+    qos-port: 22222
+
+seata:
+  enabled: false
+  #1.4.2使用此配置禁用seata数据源代理
+  enable-auto-data-source-proxy: true
+  application-id: goodskill-service-provider
+  tx-service-group: my_test_tx_group
+  config:
+    type: nacos
+    nacos:
+      namespace: bca6fe13-8ddd-4721-b753-022fe3beabd8
+      serverAddr: nacos:8848
+      group: SEATA_GROUP
+      username: nacos
+      password: nacos
+  registry:
+    type: nacos
+    nacos:
+      application: seata-server
+      server-addr: nacos:8848
+      group: SEATA_GROUP
+      namespace: bca6fe13-8ddd-4721-b753-022fe3beabd8
+      username: nacos
+      password: nacos
+
+feign:
+  sentinel:
+    ##开启sentinel对feign的支持
+    enabled: false
+logging:
+  level:
+    com.goodskill: debug
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "!production"
+    import:
+      - optional:nacos:goodskill-common-connection.yml
+      - optional:nacos:goodskill-common.yml
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+    import:
+      - nacos:goodskill-common-production.yml
+      - nacos:goodskill-seckill-production.yml
+  cloud:
+    nacos:
+      server-addr: ${GOODSKILL_NACOS_SERVER_ADDR}
+      username: ${GOODSKILL_NACOS_USERNAME}
+      password: ${GOODSKILL_NACOS_PASSWORD}
+      discovery:
+        namespace: ${GOODSKILL_NACOS_NAMESPACE}
+      config:
+        namespace: ${GOODSKILL_NACOS_NAMESPACE}
+    function:
+      definition: ""
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${GOODSKILL_COMMERCE_DB_URL}
+    username: ${GOODSKILL_COMMERCE_DB_USERNAME}
+    password: ${GOODSKILL_COMMERCE_DB_PASSWORD}
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+  rabbitmq:
+    host: ${GOODSKILL_RABBITMQ_HOST}
+    port: ${GOODSKILL_RABBITMQ_PORT:5672}
+    username: ${GOODSKILL_RABBITMQ_USERNAME}
+    password: ${GOODSKILL_RABBITMQ_PASSWORD}
+    virtual-host: ${GOODSKILL_RABBITMQ_VHOST:/}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 1s
+          max-attempts: 5
+          max-interval: 10s
+          multiplier: 2
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+    clean-disabled: true
+    locations:
+      - classpath:db/migration/production
+  graphql:
+    graphiql:
+      enabled: false
+  kafka:
+    listener:
+      auto-startup: false
+logging:
+  level:
+    com.goodskill: INFO
+goodskill:
+  trade:
+    admission-enabled: ${GOODSKILL_TRADE_ADMISSION_ENABLED:false}
+    payment-deadline-seconds: ${GOODSKILL_PAYMENT_DEADLINE_SECONDS:900}
+    expiry-scan-delay-ms: ${GOODSKILL_EXPIRY_SCAN_DELAY_MS:5000}
+    expiry-scan-initial-delay-ms: ${GOODSKILL_EXPIRY_SCAN_INITIAL_DELAY_MS:5000}
+    outbox-confirm-timeout-ms: ${GOODSKILL_OUTBOX_CONFIRM_TIMEOUT_MS:5000}
+    outbox-publish-delay-ms: ${GOODSKILL_OUTBOX_PUBLISH_DELAY_MS:1000}
+    outbox-publish-initial-delay-ms: ${GOODSKILL_OUTBOX_PUBLISH_INITIAL_DELAY_MS:10000}
+  files:
+    enabled: ${GOODSKILL_FILES_ENABLED:false}
+    max-file-bytes: ${GOODSKILL_FILES_MAX_FILE_BYTES:5242880}
+    max-pixels: ${GOODSKILL_FILES_MAX_PIXELS:12000000}
+    owner-quota-bytes: ${GOODSKILL_FILES_OWNER_QUOTA_BYTES:52428800}
+    cleanup-delay-ms: ${GOODSKILL_FILES_CLEANUP_DELAY_MS:3600000}
+    cleanup-initial-delay-ms: ${GOODSKILL_FILES_CLEANUP_INITIAL_DELAY_MS:60000}
+  payment:
+    enabled: ${GOODSKILL_PAYMENT_ENABLED:false}
+    app-id: ${GOODSKILL_PAYMENT_APP_ID:}
+    seller-id: ${GOODSKILL_PAYMENT_SELLER_ID:}
+    private-key: ${GOODSKILL_PAYMENT_PRIVATE_KEY:}
+    app-certificate: ${GOODSKILL_PAYMENT_APP_CERTIFICATE:}
+    alipay-certificate: ${GOODSKILL_PAYMENT_ALIPAY_CERTIFICATE:}
+    root-certificate: ${GOODSKILL_PAYMENT_ROOT_CERTIFICATE:}
+    gateway: ${GOODSKILL_PAYMENT_GATEWAY:https://openapi.alipay.com/gateway.do}
+    notify-url: ${GOODSKILL_PAYMENT_NOTIFY_URL:}
+    return-url: ${GOODSKILL_PAYMENT_RETURN_URL:}
+    checkout-mode: ${GOODSKILL_PAYMENT_CHECKOUT_MODE:page}

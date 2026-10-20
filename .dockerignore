@@ -1,0 +1,13 @@
+.git
+.demo
+.env
+.env.*
+**/node_modules
+**/target/*
+!goodskill-gateway/target/goodskill.jar
+!goodskill-auth/auth-service/target/goodskill.jar
+!goodskill-common/goodskill-common-service/target/goodskill.jar
+!goodskill-order-provider/goodskill-order-service/target/goodskill-mongo-service.jar
+!goodskill-seckill-provider/goodskill-service/target/goodskill-service.jar
+!goodskill-web/target/goodskill.jar
+!goodskill-ai/target/goodskill.jar
