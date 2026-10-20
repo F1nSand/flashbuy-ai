@@ -13,6 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.core.env.Environment;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -35,12 +36,16 @@ public class UserAccountServiceImplTest {
     private PermissionMapper permissionMapper;
     @Mock
     private PasswordEncoder passwordEncoder;
+    @Mock
+    private Environment environment;
 
     @Test
     public void register() {
         UserDTO user = new UserDTO();
         userService.register(user);
-        verify(baseMapper,only()).insert(any(User.class));
+        verify(baseMapper).selectList(any());
+        verify(baseMapper).insert(any(User.class));
+        verifyNoMoreInteractions(baseMapper);
     }
 
     @Test
